@@ -1,22 +1,21 @@
 # Git Notes - Week 2
 
 - Local vs remote:
-  - A local repository lives on your computer and contains your working files and history. A remote repository (e.g., on GitHub) is a hosted copy used for collaboration and backup. Changes in your local repo are not visible to others until you push them to the remote.
+  - A local repository is stored on your computer and contains your code, history, and changes. A remote repository (like one on GitHub) is an online copy used for collaboration or backup. Your local changes stay private until you push them with `git push` .
 
 - Repo, commit, branch:
-  - Repository (repo): the full project history and files tracked by Git.
-  - Commit: a saved snapshot of changes with a message, author, and unique ID.
-  - Branch: an independent line of development allowing you to work on features or fixes without affecting other branches.
+  - Repository (repo): this is your full project containing all tracked files and history.
+  - Commit: a snapshot of your changes saved with a message, your name, and a unique ID.
+  - Branch: an independent version of your code that lets you work on new features or fixes without messing up the main version.
 
 - Staging area:
-  - The staging area (index) is where you place changes with `git add` to prepare exactly what will go into the next commit. It lets you build commits from specific files or hunks.
-
+  - The staging area (also called the index) is where you prepare changes for your next commit using `git add`. It allows you to control exactly which files or parts of files to include. 
 - Push vs pull:
-  - `git push` sends your local commits to a remote repository so others can access them.
-  - `git pull` fetches commits from the remote and merges them into your current local branch (it is equivalent to `git fetch` followed by `git merge` by default).
+  - `git push` sends your commits from your local repo to the remote one (for example, on GitHub).
+  - `git pull` gets the newest commits from the remote and merges them into your local branch (it’s basically `git fetch` + `git merge`).
 
 - What .gitignore does:
-  - A `.gitignore` file lists files and patterns Git should ignore when tracking changes. Use it to exclude build artifacts, temporary files, credentials, and other files that should not be committed.
+  - The `.gitignore` file tells Git which files or folders to ignore. Use it for temporary files, build outputs, system files, or sensitive data that you don’t want to upload.
 
 - What a README is for:
-  - A README describes the project purpose, how to set it up, usage instructions, dependencies, and contribution guidelines. It helps others (and future you) understand and run the project.
+  - A README explains what your project does, how to install and use it, and often how to contribute. It’s the first thing people see when they open your repo, so it should be clear and helpful.
