@@ -1,5 +1,3 @@
-// Student-style Week 3 Node program
-// Prints identification, runtime info, env vars and a small config object
 
 console.log('=== Identification Header ===');
 console.log('Name: Noah (noah915)');
