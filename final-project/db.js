@@ -1,57 +1,117 @@
-const mysql = require('mysql2/promise');
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 require('dotenv').config();
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'inventory_system',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
+const dbPath = process.env.DB_PATH || path.join(__dirname, 'inventory.db');
+const db = new sqlite3.Database(dbPath, (err) => {
+  if (err) {
+    console.error('Error opening database:', err);
+  } else {
+    console.log('Connected to SQLite database at', dbPath);
+  }
 });
+
+// Enable foreign keys
+db.run('PRAGMA foreign_keys = ON');
+
+// Promisify db methods
+const dbAll = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows || []);
+    });
+  });
+};
+
+const dbRun = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function(err) {
+      if (err) reject(err);
+      else resolve({ insertId: this.lastID, affectedRows: this.changes });
+    });
+  });
+};
+
+const dbGet = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => {
+      if (err) reject(err);
+      else resolve(row || null);
+    });
+  });
+};
+
+// Create a pool-like connection object for MySQL compatibility
+class Connection {
+  async execute(sql, params = []) {
+    if (sql.trim().toUpperCase().startsWith('SELECT')) {
+      const rows = await dbAll(sql, params);
+      return [rows, []];
+    } else if (sql.trim().toUpperCase().startsWith('INSERT')) {
+      const result = await dbRun(sql, params);
+      return [{ insertId: result.insertId, affectedRows: result.affectedRows }];
+    } else {
+      const result = await dbRun(sql, params);
+      return [{ affectedRows: result.affectedRows }];
+    }
+  }
+
+  async query(sql, params = []) {
+    return this.execute(sql, params);
+  }
+
+  release() {
+    // No-op for compatibility
+  }
+}
+
+// Create pool-like interface for compatibility with mysql2
+const pool = {
+  getConnection: async () => new Connection(),
+  execute: async (sql, params = []) => {
+    const conn = await pool.getConnection();
+    const result = await conn.execute(sql, params);
+    conn.release();
+    return result;
+  }
+};
 
 // Initialize database schema
 const initializeDatabase = async () => {
-  const connection = await pool.getConnection();
   try {
     // Create users table
-    await connection.execute(`
+    await dbRun(`
       CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        username VARCHAR(50) UNIQUE NOT NULL,
-        email VARCHAR(100) UNIQUE NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        role ENUM('admin', 'user') DEFAULT 'user',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'user')),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     // Create inventory items table
-    await connection.execute(`
+    await dbRun(`
       CREATE TABLE IF NOT EXISTS inventory_items (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(100) NOT NULL,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
         description TEXT,
-        quantity INT DEFAULT 0,
-        price DECIMAL(10, 2),
-        category VARCHAR(50),
-        created_by INT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        quantity INTEGER DEFAULT 0,
+        price REAL,
+        category TEXT,
+        created_by INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
 
     console.log('Database initialized successfully');
   } catch (error) {
-    if (error.code !== 'ER_TABLE_EXISTS_ERROR') {
-      console.error('Database initialization error:', error);
-    }
-  } finally {
-    connection.release();
+    console.error('Database initialization error:', error);
   }
 };
 
-module.exports = { pool, initializeDatabase };
+module.exports = { pool, initializeDatabase, db, dbAll, dbRun, dbGet };
