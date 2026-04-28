@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 // Register a new user
 exports.register = async (req, res, next) => {
   try {
-    const { username, email, password, role } = req.body;
+    const { username, email, password } = req.body;
 
     // Validation
     if (!username || !email || !password) {
@@ -34,8 +34,8 @@ exports.register = async (req, res, next) => {
         });
       }
 
-      // Insert new user (default role is 'user' unless admin)
-      const userRole = role === 'admin' ? 'admin' : 'user';
+      // Insert new user with default user role
+      const userRole = 'user';
       const [result] = await connection.execute(
         'INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)',
         [username, email, hashedPassword, userRole]

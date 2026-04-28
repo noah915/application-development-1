@@ -6,6 +6,8 @@ const { isAuthenticated } = require('../middleware/auth');
 // Public routes
 router.get('/', itemsController.getAllItems);
 router.get('/category/:category', itemsController.getItemsByCategory);
+router.get('/:id/movements', isAuthenticated, itemsController.getItemMovements);
+router.post('/:id/movements', isAuthenticated, itemsController.addItemMovement);
 router.get('/:id', itemsController.getItemById);
 
 // Protected routes (authenticated users only)

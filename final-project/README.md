@@ -1,17 +1,19 @@
 # Inventory System Backend API
 
-A complete backend API for inventory management with role-based authentication, authorization, and full CRUD functionality. Built with Node.js, Express, and MySQL.
+A complete backend API for inventory management with role-based authentication, authorization, and full CRUD functionality. Built with Node.js, Express, and SQLite.
 
 ## Features
 
 ✓ **Authentication** - Session-based login/logout and registration  
 ✓ **Authorization** - Role-based access control (Admin, User)  
 ✓ **CRUD Operations** - Full Create/Read/Update/Delete for inventory items  
-✓ **Database Integration** - MySQL with proper schema and relationships  
+✓ **Database Integration** - SQLite with proper schema, foreign keys, and three related tables  
 ✓ **Error Handling** - Consistent JSON error responses with appropriate status codes  
 ✓ **Pagination** - List endpoints support pagination  
 ✓ **Admin Features** - User management, admin statistics, inventory oversight  
-✓ **Ownership-Based Access** - Users can only modify their own items (creators can only delete/update their items unless admin)
+✓ **Ownership-Based Access** - Users can only modify their own items (creators can only delete/update their items unless admin)  
+✓ **Persistent Sessions** - Session data stored in SQLite with connect-sqlite3  
+✓ **Inventory Movements** - Item movement logging for quantity changes
 
 ## Project Structure
 
@@ -38,7 +40,6 @@ final-project/
 ## Prerequisites
 
 - Node.js (v14+)
-- MySQL (v5.7+)
 - npm or yarn
 
 ## Setup Instructions
@@ -50,17 +51,9 @@ cd final-project
 npm install
 ```
 
-### 2. Set Up MySQL Database
+### 2. Configure Environment Variables
 
-Create a MySQL database:
-
-```sql
-CREATE DATABASE inventory_system;
-```
-
-### 3. Configure Environment Variables
-
-Copy `.env.example` to `.env` and update with your credentials:
+Copy `.env.example` to `.env` and update with your values:
 
 ```bash
 cp .env.example .env
@@ -68,15 +61,26 @@ cp .env.example .env
 
 Edit `.env`:
 ```
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=your_mysql_password
-DB_NAME=inventory_system
+DB_PATH=./inventory.db
+SESSION_DB_PATH=./sessions.sqlite
 SESSION_SECRET=your_secret_key_here
 PORT=3000
 NODE_ENV=development
 ```
+
+### 3. Run the Server
+
+**Development mode (with auto-reload):**
+```bash
+npm run dev
+```
+
+**Production mode:**
+```bash
+npm start
+```
+
+The server will start on `http://localhost:3000`
 
 ### 4. Run the Server
 
@@ -97,28 +101,42 @@ The server will start on `http://localhost:3000`
 ### Users Table
 ```sql
 CREATE TABLE users (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  username VARCHAR(50) UNIQUE NOT NULL,
-  email VARCHAR(100) UNIQUE NOT NULL,
-  password VARCHAR(255) NOT NULL,
-  role ENUM('admin', 'user') DEFAULT 'user',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT UNIQUE NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL,
+  role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'user')),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 )
 ```
 
 ### Inventory Items Table
 ```sql
 CREATE TABLE inventory_items (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
   description TEXT,
-  quantity INT DEFAULT 0,
-  price DECIMAL(10, 2),
-  category VARCHAR(50),
-  created_by INT NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  quantity INTEGER DEFAULT 0,
+  price REAL,
+  category TEXT,
+  created_by INTEGER NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+)
+```
+
+### Item Movements Table
+```sql
+CREATE TABLE item_movements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  item_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  change_quantity INTEGER NOT NULL,
+  note TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (item_id) REFERENCES inventory_items(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 )
 ```
 
@@ -221,6 +239,46 @@ Response (200):
     "total": 1,
     "pages": 1
   },
+  "statusCode": 200
+}
+```
+
+#### Log Item Movement (Protected)
+```
+POST /items/:id/movements
+Content-Type: application/json
+{
+  "change_quantity": -2,
+  "note": "Sold two units"
+}
+
+Response (201):
+{
+  "success": true,
+  "message": "Item movement recorded successfully.",
+  "movementId": 4,
+  "itemId": 1,
+  "statusCode": 201
+}
+```
+
+#### Get Item Movements (Protected)
+```
+GET /items/:id/movements
+Response (200):
+{
+  "success": true,
+  "data": [
+    {
+      "id": 4,
+      "item_id": 1,
+      "user_id": 1,
+      "recorded_by": "john_doe",
+      "change_quantity": -2,
+      "note": "Sold two units",
+      "created_at": "2026-04-20T14:20:00.000Z"
+    }
+  ],
   "statusCode": 200
 }
 ```
@@ -517,17 +575,17 @@ curl -X POST http://localhost:3000/items \
 ## Troubleshooting
 
 ### Database Connection Error
-- Ensure MySQL is running
-- Check DB credentials in .env file
-- Verify database name is correct
+- Ensure the SQLite database path is valid in `.env`
+- Confirm `DB_PATH` points to an accessible file location
+- Delete `inventory.db` to recreate schema when needed
 
 ### Session Not Persisting
-- Check cookie settings in server.js
-- Ensure express-session is configured correctly
+- Check cookie settings in `server.js`
+- Ensure `express-session` is configured correctly with SQLite store
 - Browser must allow cookies
 
 ### Authorization Errors (403)
-- Verify user role with GET /auth/me
+- Verify user role with `GET /auth/me`
 - Check item ownership
 - Only item creator or admin can modify items
 
@@ -535,10 +593,10 @@ curl -X POST http://localhost:3000/items \
 
 For issues or questions, refer to:
 - [Express Documentation](https://expressjs.com)
-- [MySQL Documentation](https://dev.mysql.com/doc)
+- [SQLite Documentation](https://www.sqlite.org/docs.html)
 - [bcryptjs](https://github.com/dcodeIO/bcrypt.js)
 
 ---
 
 **Course Project - Application Development**  
-Built with Node.js, Express, and MySQL
+Built with Node.js, Express, and SQLite
